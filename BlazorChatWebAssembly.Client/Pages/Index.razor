@@ -1,0 +1,130 @@
+﻿@using BlazorChatWebAssembly.Shared 
+@page "/"
+@inject NavigationManager navigationManager
+
+<div class="content px-4">
+    @if (!chatting)
+    {
+        <p>Enter your name to start chatting:</p>
+
+        <input type="text" maxlength="32" @bind="@username" />
+        <button type="button" @onclick="@Chat"><span class="oi oi-chat" aria-hidden="true"></span> Chat!</button>
+
+        <small id="emailHelp" class="form-text text-muted">@errorMessage</small>
+    }
+    else
+    {
+        <div class="top-row px-4">
+            <p>You are connected as <b>@username</b></p>
+            <button class="btn" @onclick="@DisconnectAsync">Disconnect</button>
+        </div>
+
+        <h2>Chat</h2>
+        <div class="form-group">
+            <textarea rows="3" class="form-control" placeholder="enter your message" @bind="@newMessage"></textarea>
+        </div>
+        <div class="form-group">
+            <button class="btn btn-default" @onclick="@SendAsync">Send</button>
+        </div>
+
+        <hr />
+
+        <div>
+            @foreach (var item in messages)
+            {
+                <div class="speech-bubble @item.CSS">
+                    <div class="user">@item.Username</div>
+                    <div class="msg">@item.Body</div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code  {
+    bool chatting = false;
+    string username = null;
+    ChatClient client = null;
+    string errorMessage = null;
+    string newMessage = null;
+    Stack<Message> messages = new Stack<Message>();
+
+    async Task Chat()
+    {
+        if (string.IsNullOrWhiteSpace(username))
+        {
+            errorMessage = "Please enter a name";
+            return;
+        };
+
+        try
+        {
+            messages.Clear();
+
+            client = new ChatClient(username, navigationManager.BaseUri);
+            client.MessageReceived += MessageReceived;
+
+            await client.StartAsync();
+
+            chatting = true;
+        }
+        catch (Exception e)
+        {
+            errorMessage = $"ERROR: Failed to start chat client: {e.Message}";
+        }
+    }
+
+    void MessageReceived(object sender, MessageReceivedEventArgs e)
+    {
+        bool isMine = !string.IsNullOrWhiteSpace(e.Username) && string.Equals(e.Username, username, StringComparison.CurrentCultureIgnoreCase);
+
+        messages.Push(new Message(e.Username, e.Message, isMine));
+
+        // Inform blazor the UI needs updating
+        StateHasChanged();
+    }
+
+    async Task DisconnectAsync()
+    {
+        if (chatting)
+        {
+            await client.StopAsync();
+            client = null;
+            errorMessage = "chat ended";
+            chatting = false;
+        }
+    }
+
+    async Task SendAsync()
+    {
+        if (chatting && !string.IsNullOrWhiteSpace(newMessage))
+        {
+            await client.SendAsync(newMessage);
+            
+            newMessage = string.Empty;
+        }
+    }
+
+    class Message
+    {
+        public Message(string username, string body, bool mine)
+        {
+            Username = username;
+            Body = body;
+            Mine = mine;
+        }
+
+        public string Username { get; set; }
+        public string Body { get; set; }
+        public bool Mine { get; set; }
+
+        public string CSS
+        {
+            get
+            {
+                return Mine ? "sent" : "received";
+            }
+        }
+    }
+
+}

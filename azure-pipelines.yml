@@ -1,0 +1,52 @@
+# ASP.NET Core
+# Build and test ASP.NET Core projects targeting .NET Core.
+# Add steps that run tests, create a NuGet package, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/dotnet-core
+
+trigger:
+- master
+
+pool:
+  vmImage: 'windows-latest' # publish needs to be win-x86
+
+variables:
+  buildConfiguration: 'Release'
+
+steps:
+- task: UseDotNet@2
+  displayName: 'Installing .NET Core SDK 3.1.x'
+  inputs:
+    packageType: 'sdk'
+    version: '3.1.x'
+
+- task: DotNetCoreCLI@2
+  displayName: 'Restore packages'
+  inputs:
+    command: 'restore'
+    projects: 'BlazorChatWebAssembly.sln'
+    feedsToUse: 'select'
+
+- task: DotNetCoreCLI@2
+  displayName: 'Build'
+  inputs:
+    command: 'build'
+    projects: 'BlazorChatWebAssembly.sln'
+    arguments: '--configuration $(buildConfiguration)'
+
+- task: DotNetCoreCLI@2
+  displayName: 'publish'
+  inputs:
+    command: 'publish'
+    arguments: '--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory) --self-contained true --runtime win-x86'
+
+- task: DotNetCoreCLI@2
+  displayName: 'publish'
+  inputs:
+    command: 'publish'
+    publishWebProjects: false
+    projects: 'BlazorChatWebAssembly.Server\BlazorChatWebAssembly.Server.csproj'
+    arguments: '--configuration $(BuildConfiguration) --output "$(build.artifactstagingdirectory)" --framework netcoreapp3.1  --self-contained true --runtime win-x86'
+    modifyOutputPath: false
+  
+- task: PublishBuildArtifacts@1
+  displayName: 'Publishing Build Artifacts...'
